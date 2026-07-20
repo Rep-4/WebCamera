@@ -1,0 +1,4048 @@
+<!-- File: app.html -->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1, viewport-fit=cover"
+  >
+
+  <meta
+    name="theme-color"
+    content="#090b10"
+  >
+
+  <title>Multi-Frame Camera</title>
+
+  <style>
+    :root {
+      color-scheme: dark;
+      --background: #090b10;
+      --panel: #151922;
+      --panel-light: #1d2330;
+      --border: #303849;
+      --text: #f6f7fa;
+      --muted: #a8b0c0;
+      --accent: #62a5ff;
+      --danger: #ff6b6b;
+      --success: #54d891;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      width: 100%;
+      min-height: 100%;
+      margin: 0;
+      background: var(--background);
+      color: var(--text);
+      font-family:
+        -apple-system,
+        BlinkMacSystemFont,
+        "Segoe UI",
+        "Helvetica Neue",
+        Arial,
+        sans-serif;
+    }
+
+    body {
+      padding:
+        max(12px, env(safe-area-inset-top))
+        max(12px, env(safe-area-inset-right))
+        max(18px, env(safe-area-inset-bottom))
+        max(12px, env(safe-area-inset-left));
+    }
+
+    button,
+    select,
+    input {
+      font: inherit;
+    }
+
+    button,
+    select {
+      min-height: 44px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--panel-light);
+      color: var(--text);
+    }
+
+    button {
+      padding: 10px 14px;
+      cursor: pointer;
+      touch-action: manipulation;
+    }
+
+    button:disabled,
+    select:disabled,
+    input:disabled {
+      cursor: default;
+      opacity: 0.45;
+    }
+
+    button.primary {
+      border-color: var(--accent);
+      background: var(--accent);
+      color: #06101e;
+      font-weight: 700;
+    }
+
+    select {
+      width: 100%;
+      padding: 8px 12px;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      accent-color: var(--accent);
+    }
+
+    small {
+      color: var(--muted);
+    }
+
+    .app {
+      width: min(100%, 980px);
+      margin: 0 auto;
+    }
+
+    .header {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .header h1 {
+      margin: 0;
+      font-size: 1.25rem;
+    }
+
+    .header small {
+      color: var(--muted);
+    }
+
+    .camera-panel {
+      overflow: hidden;
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      background: #000;
+    }
+
+    .preview-container {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 4 / 3;
+      min-height: 0;
+      overflow: hidden;
+      background: #000;
+      transition: aspect-ratio 160ms ease;
+    }
+
+    #video {
+      display: block;
+      width: 100%;
+      height: 100%;
+      max-height: none;
+      object-fit: cover;
+      background: #000;
+      transform-origin: center center;
+      transition: transform 80ms linear;
+    }
+
+    .guide {
+      position: absolute;
+      inset: 7%;
+      pointer-events: none;
+      border: 1px solid rgba(255, 255, 255, 0.45);
+      border-radius: 12px;
+      box-shadow:
+        0 0 0 9999px rgba(0, 0, 0, 0.06);
+    }
+
+    .guide::before,
+    .guide::after {
+      position: absolute;
+      content: "";
+      background: rgba(255, 255, 255, 0.3);
+    }
+
+    .guide::before {
+      top: 50%;
+      left: 0;
+      width: 100%;
+      height: 1px;
+    }
+
+    .guide::after {
+      top: 0;
+      left: 50%;
+      width: 1px;
+      height: 100%;
+    }
+
+    .capture-indicator {
+      position: absolute;
+      top: 14px;
+      right: 14px;
+      display: none;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 11px;
+      border-radius: 999px;
+      background: rgba(0, 0, 0, 0.7);
+      font-size: 0.85rem;
+      backdrop-filter: blur(8px);
+    }
+
+    .capture-indicator.active {
+      display: flex;
+    }
+
+    .capture-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--danger);
+      animation: pulse 1s infinite;
+    }
+
+    @keyframes pulse {
+      50% {
+        opacity: 0.35;
+      }
+    }
+
+    .controls {
+      display: grid;
+      gap: 12px;
+      padding: 14px;
+      background: var(--panel);
+    }
+
+    .control-grid {
+      display: grid;
+      grid-template-columns:
+        repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .control {
+      display: grid;
+      align-content: start;
+      gap: 7px;
+    }
+
+    .control label {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 0.84rem;
+    }
+
+    .control small {
+      min-height: 1.3em;
+      font-size: 0.75rem;
+      line-height: 1.4;
+    }
+
+    .camera-control {
+      display: none;
+    }
+
+    .camera-control.visible {
+      display: grid;
+    }
+
+    #zoomControl {
+      display: grid;
+    }
+
+    .actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .progress {
+      overflow: hidden;
+      height: 7px;
+      border-radius: 999px;
+      background: #242b38;
+    }
+
+    .progress-bar {
+      width: 0;
+      height: 100%;
+      background:
+        linear-gradient(
+          90deg,
+          #62a5ff,
+          #65e4b2
+        );
+      transition: width 120ms linear;
+    }
+
+    .status {
+      min-height: 48px;
+      padding: 11px 13px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: #10141c;
+      color: var(--muted);
+      font-size: 0.88rem;
+      line-height: 1.5;
+      white-space: pre-line;
+      overflow-wrap: anywhere;
+    }
+
+    .result-panel {
+      display: none;
+      margin-top: 14px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      background: var(--panel);
+    }
+
+    .result-panel.visible {
+      display: block;
+    }
+
+    .result-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 12px 14px;
+    }
+
+    .result-header h2 {
+      margin: 0;
+      font-size: 1rem;
+    }
+
+    .result-meta {
+      color: var(--muted);
+      font-size: 0.82rem;
+    }
+
+    #resultCanvas {
+      display: block;
+      width: 100%;
+      height: auto;
+      background: #000;
+    }
+
+    .result-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      padding: 14px;
+    }
+
+    .notes {
+      margin-top: 14px;
+      padding: 14px;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      color: var(--muted);
+      font-size: 0.86rem;
+      line-height: 1.65;
+    }
+
+    .notes ul {
+      margin: 6px 0 0;
+      padding-left: 1.3rem;
+    }
+
+    @media (max-width: 620px) {
+      .control-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <main class="app">
+    <header class="header">
+      <h1>Multi-Frame Camera</h1>
+      <small>通常 / 平均合成 / 超解像</small>
+    </header>
+
+    <section class="camera-panel">
+      <div
+        id="previewContainer"
+        class="preview-container"
+      >
+        <video
+          id="video"
+          autoplay
+          playsinline
+          muted
+        ></video>
+
+        <div class="guide"></div>
+
+        <div
+          id="captureIndicator"
+          class="capture-indicator"
+        >
+          <span class="capture-dot"></span>
+          <span id="captureCounter">0 / 0</span>
+        </div>
+      </div>
+
+      <div class="controls">
+        <div class="control-grid">
+          <div class="control">
+            <label for="cameraDevice">
+              <span>使用するカメラ</span>
+            </label>
+
+            <select id="cameraDevice">
+              <option value="">
+                自動選択
+              </option>
+            </select>
+          </div>
+
+          <div class="control">
+            <label for="mode">
+              <span>撮影方式</span>
+            </label>
+
+            <select id="mode">
+              <option value="normal">
+                補正なし・1枚出力
+              </option>
+
+              <option
+                value="average"
+                selected
+              >
+                平均合成・ノイズ低減
+              </option>
+
+              <option value="super-resolution">
+                マルチフレーム超解像
+              </option>
+            </select>
+          </div>
+
+          <div class="control">
+            <label for="aspectRatio">
+              <span>アスペクト比</span>
+            </label>
+
+            <select id="aspectRatio">
+              <option value="original">
+                カメラの比率
+              </option>
+
+              <option value="1:1">
+                1:1
+              </option>
+
+              <option
+                value="4:3"
+                selected
+              >
+                4:3
+              </option>
+
+              <option value="3:2">
+                3:2
+              </option>
+
+              <option value="16:9">
+                16:9
+              </option>
+
+              <option value="9:16">
+                9:16
+              </option>
+            </select>
+          </div>
+
+          <div
+            id="zoomControl"
+            class="control"
+          >
+            <label for="zoom">
+              <span>拡大率</span>
+              <span id="zoomValue">1.00×</span>
+            </label>
+
+            <input
+              id="zoom"
+              type="range"
+              min="0.5"
+              max="15"
+              step="0.05"
+              value="1"
+            >
+
+            <small id="zoomDetail">
+              カメラ開始後に利用可能範囲を判定します。
+            </small>
+          </div>
+
+          <div class="control">
+            <label for="frameCount">
+              <span>撮影枚数</span>
+              <span id="frameCountValue">8枚</span>
+            </label>
+
+            <input
+              id="frameCount"
+              type="range"
+              min="4"
+              max="16"
+              step="1"
+              value="8"
+            >
+          </div>
+
+          <div class="control">
+            <label for="processingEdge">
+              <span>処理入力解像度</span>
+            </label>
+
+            <select id="processingEdge">
+              <option value="1280">
+                長辺1280px・軽量
+              </option>
+
+              <option
+                value="1920"
+                selected
+              >
+                長辺1920px・標準
+              </option>
+
+              <option value="2560">
+                長辺2560px・高画質
+              </option>
+
+              <option value="3840">
+                長辺3840px・高負荷
+              </option>
+            </select>
+          </div>
+
+          <div class="control">
+            <label for="captureInterval">
+              <span>撮影間隔</span>
+            </label>
+
+            <select id="captureInterval">
+              <option value="100">
+                100ms
+              </option>
+
+              <option
+                value="180"
+                selected
+              >
+                180ms
+              </option>
+
+              <option value="300">
+                300ms
+              </option>
+
+              <option value="500">
+                500ms
+              </option>
+            </select>
+          </div>
+
+          <div
+            id="exposureCompensationControl"
+            class="control camera-control"
+          >
+            <label for="exposureCompensation">
+              <span>露出補正</span>
+              <span id="exposureCompensationValue">
+                0
+              </span>
+            </label>
+
+            <input
+              id="exposureCompensation"
+              type="range"
+              min="0"
+              max="0"
+              step="0.1"
+              value="0"
+            >
+          </div>
+
+          <div
+            id="exposureTimeControl"
+            class="control camera-control"
+          >
+            <label for="exposureTime">
+              <span>露光時間・端末依存値</span>
+              <span id="exposureTimeValue">
+                自動
+              </span>
+            </label>
+
+            <input
+              id="exposureTime"
+              type="range"
+              min="0"
+              max="0"
+              step="1"
+              value="0"
+            >
+          </div>
+
+          <div
+            id="isoControl"
+            class="control camera-control"
+          >
+            <label for="iso">
+              <span>ISO</span>
+              <span id="isoValue">
+                自動
+              </span>
+            </label>
+
+            <input
+              id="iso"
+              type="range"
+              min="0"
+              max="0"
+              step="1"
+              value="0"
+            >
+          </div>
+        </div>
+
+        <div class="actions">
+          <button
+            id="startCameraButton"
+            class="primary"
+            type="button"
+          >
+            カメラを開始
+          </button>
+
+          <button
+            id="captureButton"
+            type="button"
+            disabled
+          >
+            撮影
+          </button>
+        </div>
+
+        <div
+          class="progress"
+          aria-hidden="true"
+        >
+          <div
+            id="progressBar"
+            class="progress-bar"
+          ></div>
+        </div>
+
+        <div
+          id="status"
+          class="status"
+          role="status"
+        >HTTPSまたはlocalhostで開き、カメラを開始してください。</div>
+      </div>
+    </section>
+
+    <section
+      id="resultPanel"
+      class="result-panel"
+    >
+      <div class="result-header">
+        <h2>処理結果</h2>
+
+        <span
+          id="resultMeta"
+          class="result-meta"
+        ></span>
+      </div>
+
+      <canvas id="resultCanvas"></canvas>
+
+      <div class="result-actions">
+        <button
+          id="saveJpegButton"
+          class="primary"
+          type="button"
+        >
+          JPEG保存
+        </button>
+
+        <button
+          id="savePngButton"
+          type="button"
+        >
+          PNG保存
+        </button>
+      </div>
+    </section>
+
+    <section class="notes">
+      <strong>仕様上の注意</strong>
+
+      <ul>
+        <li>
+          0.5倍は、選択したカメラが1倍未満のズームを公開している場合のみ利用できます。
+        </li>
+
+        <li>
+          カメラ側の最大倍率を超える部分は、中央切り抜きによるデジタルズームです。
+        </li>
+
+        <li>
+          iPhoneで超広角が倍率として公開されない場合は、使用するカメラから超広角カメラを選択してください。
+        </li>
+
+        <li>
+          平均合成と超解像では、静止した被写体を撮影してください。
+        </li>
+
+        <li>
+          超解像の出力は端末のキャンバス上限に合わせて自動縮小される場合があります。
+        </li>
+      </ul>
+    </section>
+  </main>
+
+  <script>
+    "use strict";
+
+    const MAX_OUTPUT_DIMENSION = 4096;
+    const MAX_OUTPUT_PIXELS = 10_000_000;
+    const PROCESSING_TILE_SIZE = 256;
+    const ALIGNMENT_LONG_EDGE = 192;
+    const INVALID_FRAME_RETRY_COUNT = 4;
+
+    const video =
+      document.getElementById("video");
+
+    const previewContainer =
+      document.getElementById(
+        "previewContainer"
+      );
+
+    const cameraDeviceSelect =
+      document.getElementById(
+        "cameraDevice"
+      );
+
+    const modeSelect =
+      document.getElementById("mode");
+
+    const aspectRatioSelect =
+      document.getElementById(
+        "aspectRatio"
+      );
+
+    const frameCountInput =
+      document.getElementById(
+        "frameCount"
+      );
+
+    const frameCountValue =
+      document.getElementById(
+        "frameCountValue"
+      );
+
+    const processingEdgeSelect =
+      document.getElementById(
+        "processingEdge"
+      );
+
+    const captureIntervalSelect =
+      document.getElementById(
+        "captureInterval"
+      );
+
+    const startCameraButton =
+      document.getElementById(
+        "startCameraButton"
+      );
+
+    const captureButton =
+      document.getElementById(
+        "captureButton"
+      );
+
+    const captureIndicator =
+      document.getElementById(
+        "captureIndicator"
+      );
+
+    const captureCounter =
+      document.getElementById(
+        "captureCounter"
+      );
+
+    const progressBar =
+      document.getElementById(
+        "progressBar"
+      );
+
+    const statusElement =
+      document.getElementById(
+        "status"
+      );
+
+    const resultPanel =
+      document.getElementById(
+        "resultPanel"
+      );
+
+    const resultCanvas =
+      document.getElementById(
+        "resultCanvas"
+      );
+
+    const resultMeta =
+      document.getElementById(
+        "resultMeta"
+      );
+
+    const saveJpegButton =
+      document.getElementById(
+        "saveJpegButton"
+      );
+
+    const savePngButton =
+      document.getElementById(
+        "savePngButton"
+      );
+
+    const zoomControl =
+      document.getElementById(
+        "zoomControl"
+      );
+
+    const zoomInput =
+      document.getElementById("zoom");
+
+    const zoomValue =
+      document.getElementById(
+        "zoomValue"
+      );
+
+    const zoomDetail =
+      document.getElementById(
+        "zoomDetail"
+      );
+
+    const exposureCompensationControl =
+      document.getElementById(
+        "exposureCompensationControl"
+      );
+
+    const exposureCompensationInput =
+      document.getElementById(
+        "exposureCompensation"
+      );
+
+    const exposureCompensationValue =
+      document.getElementById(
+        "exposureCompensationValue"
+      );
+
+    const exposureTimeControl =
+      document.getElementById(
+        "exposureTimeControl"
+      );
+
+    const exposureTimeInput =
+      document.getElementById(
+        "exposureTime"
+      );
+
+    const exposureTimeValue =
+      document.getElementById(
+        "exposureTimeValue"
+      );
+
+    const isoControl =
+      document.getElementById(
+        "isoControl"
+      );
+
+    const isoInput =
+      document.getElementById("iso");
+
+    const isoValue =
+      document.getElementById(
+        "isoValue"
+      );
+
+    let mediaStream = null;
+    let videoTrack = null;
+    let capabilities = {};
+    let isCapturing = false;
+    let resultBlobUrl = null;
+
+    let appliedCameraZoom = 1;
+    let appliedDigitalZoom = 1;
+    let effectiveZoom = 1;
+    let zoomApplySequence = 0;
+
+    frameCountInput.addEventListener(
+      "input",
+      () => {
+        updateModeControls();
+      }
+    );
+
+    modeSelect.addEventListener(
+      "change",
+      () => {
+        updateModeControls();
+      }
+    );
+
+    aspectRatioSelect.addEventListener(
+      "change",
+      () => {
+        updatePreviewGeometry();
+      }
+    );
+
+    cameraDeviceSelect.addEventListener(
+      "change",
+      async () => {
+        if (!isCapturing) {
+          await startCamera();
+        }
+      }
+    );
+
+    startCameraButton.addEventListener(
+      "click",
+      startCamera
+    );
+
+    captureButton.addEventListener(
+      "click",
+      captureAndProcess
+    );
+
+    saveJpegButton.addEventListener(
+      "click",
+      () => {
+        saveCanvas(
+          "image/jpeg",
+          0.96
+        );
+      }
+    );
+
+    savePngButton.addEventListener(
+      "click",
+      () => {
+        saveCanvas("image/png");
+      }
+    );
+
+    zoomInput.addEventListener(
+      "input",
+      debounce(
+        async () => {
+          await applyRequestedZoom(
+            Number(zoomInput.value),
+            true
+          );
+        },
+        60
+      )
+    );
+
+    exposureCompensationInput.addEventListener(
+      "input",
+      debounce(
+        async () => {
+          const value =
+            Number(
+              exposureCompensationInput.value
+            );
+
+          exposureCompensationValue.textContent =
+            formatNumber(value);
+
+          await applyCameraConstraint({
+            exposureCompensation: value
+          });
+        },
+        100
+      )
+    );
+
+    exposureTimeInput.addEventListener(
+      "input",
+      debounce(
+        async () => {
+          const value =
+            Number(
+              exposureTimeInput.value
+            );
+
+          exposureTimeValue.textContent =
+            formatNumber(value);
+
+          await applyManualExposure({
+            exposureTime: value
+          });
+        },
+        120
+      )
+    );
+
+    isoInput.addEventListener(
+      "input",
+      debounce(
+        async () => {
+          const value =
+            Number(isoInput.value);
+
+          isoValue.textContent =
+            formatNumber(value);
+
+          await applyManualExposure({
+            iso: value
+          });
+        },
+        120
+      )
+    );
+
+    if (
+      navigator.mediaDevices &&
+      typeof navigator.mediaDevices
+        .addEventListener === "function"
+    ) {
+      navigator.mediaDevices.addEventListener(
+        "devicechange",
+        async () => {
+          try {
+            await updateCameraDeviceList();
+          } catch (error) {
+            console.warn(
+              "カメラ一覧を更新できませんでした。",
+              error
+            );
+          }
+        }
+      );
+    }
+
+    updateModeControls();
+    updatePreviewGeometry();
+
+    async function startCamera() {
+      if (
+        !navigator.mediaDevices ||
+        !navigator.mediaDevices
+          .getUserMedia
+      ) {
+        setStatus(
+          "このブラウザはカメラAPIに対応していません。"
+        );
+        return;
+      }
+
+      if (!window.isSecureContext) {
+        setStatus(
+          [
+            "安全なコンテキストではありません。",
+            "HTTPSまたはlocalhostで開いてください。"
+          ].join("\n")
+        );
+        return;
+      }
+
+      const selectedDeviceId =
+        cameraDeviceSelect.value;
+
+      stopCamera();
+      setBusy(true);
+
+      setStatus(
+        "カメラへのアクセスを要求しています。"
+      );
+
+      try {
+        mediaStream =
+          await openCameraWithFallback(
+            selectedDeviceId
+          );
+
+        video.srcObject = mediaStream;
+
+        videoTrack =
+          mediaStream.getVideoTracks()[0];
+
+        video.muted = true;
+        video.playsInline = true;
+        video.autoplay = true;
+
+        await waitForVideoMetadata();
+        await video.play();
+        await waitForVideoFrame();
+        await sleep(200);
+        await waitForVideoFrame();
+
+        capabilities =
+          typeof videoTrack
+            .getCapabilities === "function"
+            ? videoTrack.getCapabilities()
+            : {};
+
+        configureCameraControls();
+
+        await applyRequestedZoom(
+          Number(zoomInput.value),
+          false
+        );
+
+        updatePreviewGeometry();
+        await updateCameraDeviceList();
+
+        const settings =
+          typeof videoTrack
+            .getSettings === "function"
+            ? videoTrack.getSettings()
+            : {};
+
+        const blackFrameDetected =
+          isPreviewProbablyBlack();
+
+        const lines = [
+          "カメラを開始しました。",
+          `入力: ${video.videoWidth} × ${video.videoHeight}`,
+          `デバイス: ${videoTrack.label || "名称不明"}`,
+          settings.frameRate
+            ? `フレームレート: ${formatNumber(settings.frameRate)} fps`
+            : "",
+          blackFrameDetected
+            ? "ほぼ黒い映像が検出されました。レンズ、カメラ選択、照明を確認してください。"
+            : "映像フレームを正常に取得しました。"
+        ];
+
+        setStatus(
+          lines
+            .filter(Boolean)
+            .join("\n")
+        );
+
+        startCameraButton.textContent =
+          "カメラを再起動";
+      } catch (error) {
+        console.error(error);
+
+        setStatus(
+          [
+            "カメラを開始できませんでした。",
+            getCameraErrorMessage(error)
+          ].join("\n")
+        );
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    async function openCameraWithFallback(
+      selectedDeviceId
+    ) {
+      const isMobileDevice =
+        /iPhone|iPad|iPod|Android/i.test(
+          navigator.userAgent
+        );
+
+      const deviceConstraint =
+        selectedDeviceId
+          ? {
+              deviceId: {
+                exact: selectedDeviceId
+              }
+            }
+          : {};
+
+      const facingConstraint =
+        !selectedDeviceId &&
+        isMobileDevice
+          ? {
+              facingMode: {
+                ideal: "environment"
+              }
+            }
+          : {};
+
+      const attempts = [
+        {
+          audio: false,
+          video: {
+            ...deviceConstraint,
+            ...facingConstraint,
+            width: {
+              ideal: 3840
+            },
+            height: {
+              ideal: 2160
+            },
+            frameRate: {
+              ideal: 30
+            }
+          }
+        },
+        {
+          audio: false,
+          video: {
+            ...deviceConstraint,
+            ...facingConstraint,
+            width: {
+              ideal: 1920
+            },
+            height: {
+              ideal: 1080
+            },
+            frameRate: {
+              ideal: 30
+            }
+          }
+        },
+        {
+          audio: false,
+          video: {
+            ...deviceConstraint,
+            ...facingConstraint,
+            width: {
+              ideal: 1280
+            },
+            height: {
+              ideal: 720
+            }
+          }
+        },
+        {
+          audio: false,
+          video: {
+            ...deviceConstraint,
+            ...facingConstraint
+          }
+        }
+      ];
+
+      let lastError = null;
+
+      for (
+        const constraints of attempts
+      ) {
+        try {
+          return await navigator
+            .mediaDevices
+            .getUserMedia(constraints);
+        } catch (error) {
+          console.warn(
+            "条件を変更して再試行します。",
+            constraints,
+            error
+          );
+
+          lastError = error;
+        }
+      }
+
+      throw (
+        lastError ||
+        new Error(
+          "利用可能なカメラが見つかりませんでした。"
+        )
+      );
+    }
+
+    function stopCamera() {
+      try {
+        video.pause();
+      } catch (error) {
+        console.warn(error);
+      }
+
+      if (mediaStream) {
+        for (
+          const track of mediaStream
+            .getTracks()
+        ) {
+          track.stop();
+        }
+      }
+
+      video.srcObject = null;
+
+      mediaStream = null;
+      videoTrack = null;
+      capabilities = {};
+
+      appliedCameraZoom = 1;
+      appliedDigitalZoom = 1;
+      effectiveZoom = 1;
+
+      captureButton.disabled = true;
+
+      hideCameraControls();
+      updateZoomDisplay();
+      updatePreviewGeometry();
+    }
+
+    async function updateCameraDeviceList() {
+      if (
+        !navigator.mediaDevices ||
+        !navigator.mediaDevices
+          .enumerateDevices
+      ) {
+        return;
+      }
+
+      const devices =
+        await navigator.mediaDevices
+          .enumerateDevices();
+
+      const videoDevices =
+        devices.filter(
+          device =>
+            device.kind === "videoinput"
+        );
+
+      const previousSelection =
+        cameraDeviceSelect.value;
+
+      const settings =
+        videoTrack &&
+        typeof videoTrack
+          .getSettings === "function"
+          ? videoTrack.getSettings()
+          : {};
+
+      const currentDeviceId =
+        settings.deviceId || "";
+
+      cameraDeviceSelect.replaceChildren();
+
+      const automaticOption =
+        document.createElement("option");
+
+      automaticOption.value = "";
+      automaticOption.textContent =
+        "自動選択";
+
+      cameraDeviceSelect.appendChild(
+        automaticOption
+      );
+
+      videoDevices.forEach(
+        (device, index) => {
+          const option =
+            document.createElement("option");
+
+          option.value =
+            device.deviceId;
+
+          option.textContent =
+            device.label ||
+            `カメラ ${index + 1}`;
+
+          cameraDeviceSelect.appendChild(
+            option
+          );
+        }
+      );
+
+      const availableIds =
+        new Set(
+          videoDevices.map(
+            device => device.deviceId
+          )
+        );
+
+      if (
+        previousSelection &&
+        availableIds.has(
+          previousSelection
+        )
+      ) {
+        cameraDeviceSelect.value =
+          previousSelection;
+      } else if (
+        currentDeviceId &&
+        availableIds.has(
+          currentDeviceId
+        )
+      ) {
+        cameraDeviceSelect.value =
+          currentDeviceId;
+      }
+    }
+
+    function waitForVideoMetadata() {
+      if (
+        video.readyState >=
+          HTMLMediaElement.HAVE_METADATA &&
+        video.videoWidth > 0 &&
+        video.videoHeight > 0
+      ) {
+        return Promise.resolve();
+      }
+
+      return new Promise(
+        (resolve, reject) => {
+          const timeoutId =
+            window.setTimeout(
+              () => {
+                reject(
+                  new Error(
+                    "カメラ映像の初期化がタイムアウトしました。"
+                  )
+                );
+              },
+              12000
+            );
+
+          video.addEventListener(
+            "loadedmetadata",
+            () => {
+              window.clearTimeout(
+                timeoutId
+              );
+
+              resolve();
+            },
+            {
+              once: true
+            }
+          );
+        }
+      );
+    }
+
+    function waitForVideoFrame() {
+      if (
+        typeof video
+          .requestVideoFrameCallback ===
+        "function"
+      ) {
+        return new Promise(
+          (resolve, reject) => {
+            const timeoutId =
+              window.setTimeout(
+                () => {
+                  reject(
+                    new Error(
+                      "カメラから映像フレームを取得できませんでした。"
+                    )
+                  );
+                },
+                5000
+              );
+
+            video.requestVideoFrameCallback(
+              () => {
+                window.clearTimeout(
+                  timeoutId
+                );
+
+                resolve();
+              }
+            );
+          }
+        );
+      }
+
+      return new Promise(resolve => {
+        window.requestAnimationFrame(
+          () => {
+            window.requestAnimationFrame(
+              resolve
+            );
+          }
+        );
+      });
+    }
+
+    function configureCameraControls() {
+      hideCameraControls();
+      configureZoomControl();
+
+      configureRangeCapability({
+        capability:
+          capabilities
+            .exposureCompensation,
+        control:
+          exposureCompensationControl,
+        input:
+          exposureCompensationInput,
+        output:
+          exposureCompensationValue,
+        formatter: formatNumber
+      });
+
+      const exposureModes =
+        capabilities.exposureMode;
+
+      const manualExposureSupported =
+        Array.isArray(exposureModes) &&
+        exposureModes.includes("manual");
+
+      if (
+        manualExposureSupported &&
+        isRangeCapability(
+          capabilities.exposureTime
+        )
+      ) {
+        configureRangeCapability({
+          capability:
+            capabilities.exposureTime,
+          control:
+            exposureTimeControl,
+          input:
+            exposureTimeInput,
+          output:
+            exposureTimeValue,
+          formatter: formatNumber
+        });
+      }
+
+      if (
+        manualExposureSupported &&
+        isRangeCapability(
+          capabilities.iso
+        )
+      ) {
+        configureRangeCapability({
+          capability:
+            capabilities.iso,
+          control:
+            isoControl,
+          input:
+            isoInput,
+          output:
+            isoValue,
+          formatter: formatNumber
+        });
+      }
+    }
+
+    function configureZoomControl() {
+      zoomControl.classList.add(
+        "visible"
+      );
+
+      const settings =
+        videoTrack &&
+        typeof videoTrack
+          .getSettings === "function"
+          ? videoTrack.getSettings()
+          : {};
+
+      const zoomCapability =
+        capabilities.zoom;
+
+      if (
+        isRangeCapability(
+          zoomCapability
+        )
+      ) {
+        const currentZoom =
+          Number.isFinite(
+            settings.zoom
+          )
+            ? settings.zoom
+            : clamp(
+                1,
+                zoomCapability.min,
+                zoomCapability.max
+              );
+
+        appliedCameraZoom =
+          currentZoom;
+
+        appliedDigitalZoom = 1;
+        effectiveZoom =
+          currentZoom;
+
+        zoomInput.value = clamp(
+          currentZoom,
+          0.5,
+          15
+        );
+
+        zoomDetail.textContent =
+          [
+            `カメラ範囲: ${formatZoom(zoomCapability.min)}～${formatZoom(zoomCapability.max)}`,
+            zoomCapability.max < 15
+              ? "上限超過分はデジタル拡大"
+              : ""
+          ]
+            .filter(Boolean)
+            .join("・");
+      } else {
+        appliedCameraZoom = 1;
+        appliedDigitalZoom = 1;
+        effectiveZoom = 1;
+        zoomInput.value = 1;
+
+        zoomDetail.textContent =
+          "カメラズーム非対応・1～15倍はデジタル拡大";
+      }
+
+      updateZoomDisplay();
+    }
+
+    function configureRangeCapability({
+      capability,
+      control,
+      input,
+      output,
+      formatter
+    }) {
+      if (
+        !isRangeCapability(capability)
+      ) {
+        return;
+      }
+
+      const settings =
+        typeof videoTrack
+          .getSettings === "function"
+          ? videoTrack.getSettings()
+          : {};
+
+      const settingName =
+        input.id;
+
+      const defaultValue =
+        Number.isFinite(
+          settings[settingName]
+        )
+          ? settings[settingName]
+          : capability.min;
+
+      input.min = capability.min;
+      input.max = capability.max;
+
+      input.step =
+        capability.step ||
+        Math.max(
+          (
+            capability.max -
+            capability.min
+          ) / 200,
+          0.000001
+        );
+
+      input.value = clamp(
+        defaultValue,
+        capability.min,
+        capability.max
+      );
+
+      output.textContent =
+        formatter(input.value);
+
+      control.classList.add(
+        "visible"
+      );
+    }
+
+    function hideCameraControls() {
+      const controls = [
+        exposureCompensationControl,
+        exposureTimeControl,
+        isoControl
+      ];
+
+      for (
+        const control of controls
+      ) {
+        control.classList.remove(
+          "visible"
+        );
+      }
+
+      zoomControl.classList.add(
+        "visible"
+      );
+    }
+
+    async function applyRequestedZoom(
+      requestedZoom,
+      showStatusMessage = true
+    ) {
+      if (isCapturing) {
+        return;
+      }
+
+      const sequence =
+        ++zoomApplySequence;
+
+      requestedZoom = clamp(
+        requestedZoom,
+        0.5,
+        15
+      );
+
+      const zoomCapability =
+        capabilities.zoom;
+
+      let cameraZoom = 1;
+      let digitalZoom = 1;
+      let actualZoom =
+        requestedZoom;
+
+      let limitationMessage = "";
+
+      if (
+        isRangeCapability(
+          zoomCapability
+        )
+      ) {
+        if (
+          requestedZoom <
+          zoomCapability.min
+        ) {
+          cameraZoom =
+            zoomCapability.min;
+
+          digitalZoom = 1;
+          actualZoom =
+            zoomCapability.min;
+
+          limitationMessage =
+            `${formatZoom(requestedZoom)}はこのカメラで利用できないため、` +
+            `${formatZoom(actualZoom)}に制限しました。`;
+        } else {
+          cameraZoom = clamp(
+            requestedZoom,
+            zoomCapability.min,
+            zoomCapability.max
+          );
+
+          digitalZoom = Math.max(
+            1,
+            requestedZoom /
+              cameraZoom
+          );
+
+          actualZoom =
+            cameraZoom *
+            digitalZoom;
+        }
+      } else if (
+        requestedZoom < 1
+      ) {
+        cameraZoom = 1;
+        digitalZoom = 1;
+        actualZoom = 1;
+
+        limitationMessage =
+          "このカメラでは1倍未満を利用できません。超広角カメラがある場合は、使用するカメラから選択してください。";
+      } else {
+        cameraZoom = 1;
+        digitalZoom =
+          requestedZoom;
+        actualZoom =
+          requestedZoom;
+      }
+
+      if (
+        videoTrack &&
+        isRangeCapability(
+          zoomCapability
+        )
+      ) {
+        try {
+          await videoTrack.applyConstraints({
+            advanced: [
+              {
+                zoom: cameraZoom
+              }
+            ]
+          });
+
+          const settings =
+            typeof videoTrack
+              .getSettings === "function"
+              ? videoTrack.getSettings()
+              : {};
+
+          if (
+            Number.isFinite(
+              settings.zoom
+            )
+          ) {
+            cameraZoom =
+              settings.zoom;
+          }
+
+          if (
+            requestedZoom >=
+            cameraZoom
+          ) {
+            digitalZoom =
+              requestedZoom /
+              cameraZoom;
+
+            actualZoom =
+              requestedZoom;
+          } else {
+            digitalZoom = 1;
+            actualZoom =
+              cameraZoom;
+          }
+        } catch (error) {
+          console.warn(
+            "カメラズームを適用できませんでした。",
+            error
+          );
+
+          const settings =
+            typeof videoTrack
+              .getSettings === "function"
+              ? videoTrack.getSettings()
+              : {};
+
+          cameraZoom =
+            Number.isFinite(
+              settings.zoom
+            )
+              ? settings.zoom
+              : 1;
+
+          if (
+            requestedZoom >=
+            cameraZoom
+          ) {
+            digitalZoom =
+              requestedZoom /
+              cameraZoom;
+
+            actualZoom =
+              requestedZoom;
+          } else {
+            digitalZoom = 1;
+            actualZoom =
+              cameraZoom;
+
+            limitationMessage =
+              "カメラが指定倍率を適用できませんでした。";
+          }
+        }
+      }
+
+      if (
+        sequence !==
+        zoomApplySequence
+      ) {
+        return;
+      }
+
+      appliedCameraZoom =
+        cameraZoom;
+
+      appliedDigitalZoom =
+        Math.max(
+          1,
+          digitalZoom
+        );
+
+      effectiveZoom =
+        actualZoom;
+
+      zoomInput.value = clamp(
+        actualZoom,
+        0.5,
+        15
+      );
+
+      updateZoomDisplay();
+      updatePreviewGeometry();
+
+      if (
+        limitationMessage &&
+        showStatusMessage
+      ) {
+        setStatus(
+          limitationMessage
+        );
+      }
+    }
+
+    function updateZoomDisplay() {
+      zoomValue.textContent =
+        formatZoom(effectiveZoom);
+
+      const zoomCapability =
+        capabilities.zoom;
+
+      if (
+        isRangeCapability(
+          zoomCapability
+        )
+      ) {
+        const digitalText =
+          appliedDigitalZoom >
+          1.001
+            ? `・デジタル ${formatZoom(appliedDigitalZoom)}`
+            : "";
+
+        zoomDetail.textContent =
+          `カメラ ${formatZoom(appliedCameraZoom)}` +
+          digitalText;
+      } else if (
+        appliedDigitalZoom >
+        1.001
+      ) {
+        zoomDetail.textContent =
+          `デジタル ${formatZoom(appliedDigitalZoom)}`;
+      } else {
+        zoomDetail.textContent =
+          "等倍";
+      }
+    }
+
+    function updatePreviewGeometry() {
+      const ratio =
+        getSelectedAspectRatio();
+
+      previewContainer.style
+        .aspectRatio =
+        `${ratio.width} / ${ratio.height}`;
+
+      video.style.transform =
+        `scale(${Math.max(1, appliedDigitalZoom)})`;
+    }
+
+    function getSelectedAspectRatio() {
+      const value =
+        aspectRatioSelect.value;
+
+      if (
+        value === "original"
+      ) {
+        const width =
+          video.videoWidth || 4;
+
+        const height =
+          video.videoHeight || 3;
+
+        return {
+          width,
+          height,
+          value: width / height,
+          label: "カメラ比率"
+        };
+      }
+
+      const parts =
+        value.split(":");
+
+      const width =
+        Number(parts[0]);
+
+      const height =
+        Number(parts[1]);
+
+      return {
+        width,
+        height,
+        value: width / height,
+        label: value
+      };
+    }
+
+    function calculateCapturePlan(
+      sourceWidth,
+      sourceHeight,
+      maximumOutputEdge
+    ) {
+      const ratio =
+        getSelectedAspectRatio();
+
+      const targetRatio =
+        ratio.value;
+
+      const sourceRatio =
+        sourceWidth /
+        sourceHeight;
+
+      let aspectWidth;
+      let aspectHeight;
+
+      if (
+        sourceRatio >
+        targetRatio
+      ) {
+        aspectHeight =
+          sourceHeight;
+
+        aspectWidth =
+          aspectHeight *
+          targetRatio;
+      } else {
+        aspectWidth =
+          sourceWidth;
+
+        aspectHeight =
+          aspectWidth /
+          targetRatio;
+      }
+
+      const digitalZoom =
+        Math.max(
+          1,
+          appliedDigitalZoom
+        );
+
+      const sourceCropWidth =
+        aspectWidth /
+        digitalZoom;
+
+      const sourceCropHeight =
+        aspectHeight /
+        digitalZoom;
+
+      const sourceX =
+        (
+          sourceWidth -
+          sourceCropWidth
+        ) / 2;
+
+      const sourceY =
+        (
+          sourceHeight -
+          sourceCropHeight
+        ) / 2;
+
+      const outputScale =
+        Math.min(
+          1,
+          maximumOutputEdge /
+            Math.max(
+              aspectWidth,
+              aspectHeight
+            )
+        );
+
+      const outputWidth =
+        Math.max(
+          1,
+          Math.round(
+            aspectWidth *
+            outputScale
+          )
+        );
+
+      const outputHeight =
+        Math.max(
+          1,
+          Math.round(
+            aspectHeight *
+            outputScale
+          )
+        );
+
+      return {
+        sourceX,
+        sourceY,
+        sourceWidth:
+          sourceCropWidth,
+        sourceHeight:
+          sourceCropHeight,
+        outputWidth,
+        outputHeight,
+        aspectLabel:
+          ratio.label
+      };
+    }
+
+    async function applyCameraConstraint(
+      constraint
+    ) {
+      if (
+        !videoTrack ||
+        isCapturing
+      ) {
+        return;
+      }
+
+      try {
+        await videoTrack.applyConstraints({
+          advanced: [constraint]
+        });
+
+        await waitForVideoFrame();
+      } catch (error) {
+        console.warn(
+          "カメラ設定を適用できませんでした。",
+          constraint,
+          error
+        );
+
+        setStatus(
+          [
+            "端末が設定を適用できませんでした。",
+            getErrorMessage(error)
+          ].join("\n")
+        );
+      }
+    }
+
+    async function applyManualExposure(
+      partialConstraint
+    ) {
+      const constraint = {
+        exposureMode: "manual",
+        ...partialConstraint
+      };
+
+      if (
+        exposureTimeControl
+          .classList
+          .contains("visible")
+      ) {
+        constraint.exposureTime =
+          Number(
+            exposureTimeInput.value
+          );
+      }
+
+      if (
+        isoControl
+          .classList
+          .contains("visible")
+      ) {
+        constraint.iso =
+          Number(isoInput.value);
+      }
+
+      await applyCameraConstraint(
+        constraint
+      );
+    }
+
+    async function captureAndProcess() {
+      if (
+        isCapturing ||
+        !mediaStream ||
+        !videoTrack ||
+        video.videoWidth <= 0 ||
+        video.videoHeight <= 0
+      ) {
+        return;
+      }
+
+      const mode =
+        modeSelect.value;
+
+      const frameCount =
+        mode === "normal"
+          ? 1
+          : Number(
+              frameCountInput.value
+            );
+
+      const interval =
+        Number(
+          captureIntervalSelect.value
+        );
+
+      const maximumEdge =
+        Number(
+          processingEdgeSelect.value
+        );
+
+      const capturePlan =
+        calculateCapturePlan(
+          video.videoWidth,
+          video.videoHeight,
+          maximumEdge
+        );
+
+      const frames = [];
+
+      isCapturing = true;
+      setBusy(true);
+
+      resultPanel.classList.remove(
+        "visible"
+      );
+
+      progressBar.style.width =
+        "0%";
+
+      captureIndicator.classList.add(
+        "active"
+      );
+
+      try {
+        setStatus(
+          mode === "normal"
+            ? "映像フレームを取得しています。"
+            : "端末を安定させてください。\n連続撮影を開始します。"
+        );
+
+        await waitForVideoFrame();
+
+        for (
+          let index = 0;
+          index < frameCount;
+          index++
+        ) {
+          captureCounter.textContent =
+            `${index + 1} / ${frameCount}`;
+
+          const frame =
+            await captureValidVideoFrame(
+              capturePlan
+            );
+
+          frames.push(frame);
+
+          const captureProgress =
+            (
+              (index + 1) /
+              frameCount
+            ) *
+            (
+              mode === "normal"
+                ? 80
+                : 40
+            );
+
+          progressBar.style.width =
+            `${captureProgress}%`;
+
+          if (
+            index <
+            frameCount - 1
+          ) {
+            await sleep(interval);
+            await waitForVideoFrame();
+          }
+        }
+
+        if (
+          mode === "normal"
+        ) {
+          setStatus(
+            "指定された比率と倍率で画像を出力しています。"
+          );
+
+          renderNormalFrame(
+            frames[0].canvas
+          );
+
+          progressBar.style.width =
+            "100%";
+        } else {
+          setStatus(
+            "フレーム間の位置ずれを推定しています。"
+          );
+
+          const alignments =
+            await estimateAlignments(
+              frames,
+              progress => {
+                progressBar.style.width =
+                  `${40 + progress * 25}%`;
+              }
+            );
+
+          const crop =
+            calculateCommonCrop(
+              frames[0].canvas.width,
+              frames[0].canvas.height,
+              alignments
+            );
+
+          validateCrop(
+            crop,
+            frames[0].canvas.width,
+            frames[0].canvas.height
+          );
+
+          const requestedScale =
+            mode ===
+            "super-resolution"
+              ? 2
+              : 1;
+
+          const safeScale =
+            calculateSafeOutputScale(
+              crop.width,
+              crop.height,
+              requestedScale
+            );
+
+          setStatus(
+            mode === "average"
+              ? "タイル単位で平均合成しています。"
+              : "タイル単位で超解像合成しています。"
+          );
+
+          await renderTiledComposite({
+            frames,
+            alignments,
+            crop,
+            outputScale:
+              safeScale,
+            onProgress:
+              progress => {
+                progressBar.style.width =
+                  `${65 + progress * 35}%`;
+              }
+          });
+
+          progressBar.style.width =
+            "100%";
+        }
+
+        resultPanel.classList.add(
+          "visible"
+        );
+
+        const modeName =
+          getModeName(mode);
+
+        setStatus(
+          [
+            "処理が完了しました。",
+            `方式: ${modeName}`,
+            `アスペクト比: ${capturePlan.aspectLabel}`,
+            `倍率: ${formatZoom(effectiveZoom)}`,
+            `カメラ倍率: ${formatZoom(appliedCameraZoom)}`,
+            appliedDigitalZoom >
+            1.001
+              ? `追加デジタル倍率: ${formatZoom(appliedDigitalZoom)}`
+              : "",
+            `使用枚数: ${frames.length}枚`,
+            `出力: ${resultCanvas.width} × ${resultCanvas.height}`
+          ]
+            .filter(Boolean)
+            .join("\n")
+        );
+
+        resultPanel.scrollIntoView({
+          behavior: "smooth",
+          block: "start"
+        });
+      } catch (error) {
+        console.error(error);
+
+        setStatus(
+          [
+            "撮影または処理に失敗しました。",
+            getErrorMessage(error)
+          ].join("\n")
+        );
+      } finally {
+        releaseFrames(frames);
+
+        captureIndicator.classList.remove(
+          "active"
+        );
+
+        isCapturing = false;
+        setBusy(false);
+      }
+    }
+
+    async function captureValidVideoFrame(
+      capturePlan
+    ) {
+      for (
+        let attempt = 0;
+        attempt <
+        INVALID_FRAME_RETRY_COUNT;
+        attempt++
+      ) {
+        if (
+          video.readyState <
+          HTMLMediaElement
+            .HAVE_CURRENT_DATA
+        ) {
+          await waitForVideoFrame();
+        }
+
+        const frame =
+          captureVideoFrame(
+            capturePlan
+          );
+
+        if (
+          !isProbablyInvalidFrame(
+            frame.canvas
+          )
+        ) {
+          return frame;
+        }
+
+        frame.alignmentData = null;
+        frame.canvas.width = 1;
+        frame.canvas.height = 1;
+
+        await sleep(150);
+        await waitForVideoFrame();
+      }
+
+      throw new Error(
+        [
+          "カメラから有効な画像を取得できませんでした。",
+          "レンズ、カメラ選択、照明を確認してください。"
+        ].join("\n")
+      );
+    }
+
+    function captureVideoFrame(
+      capturePlan
+    ) {
+      const canvas =
+        document.createElement(
+          "canvas"
+        );
+
+      canvas.width =
+        capturePlan.outputWidth;
+
+      canvas.height =
+        capturePlan.outputHeight;
+
+      const context =
+        canvas.getContext(
+          "2d",
+          {
+            alpha: false
+          }
+        );
+
+      if (!context) {
+        throw new Error(
+          "撮影用キャンバスを作成できませんでした。"
+        );
+      }
+
+      context.imageSmoothingEnabled =
+        true;
+
+      context.imageSmoothingQuality =
+        "high";
+
+      context.drawImage(
+        video,
+        capturePlan.sourceX,
+        capturePlan.sourceY,
+        capturePlan.sourceWidth,
+        capturePlan.sourceHeight,
+        0,
+        0,
+        capturePlan.outputWidth,
+        capturePlan.outputHeight
+      );
+
+      return {
+        canvas,
+        alignmentData:
+          createAlignmentImage(
+            canvas
+          )
+      };
+    }
+
+    function isProbablyInvalidFrame(
+      sourceCanvas
+    ) {
+      const sampleCanvas =
+        document.createElement(
+          "canvas"
+        );
+
+      sampleCanvas.width = 32;
+      sampleCanvas.height = 32;
+
+      const context =
+        sampleCanvas.getContext(
+          "2d",
+          {
+            alpha: false,
+            willReadFrequently: true
+          }
+        );
+
+      if (!context) {
+        return true;
+      }
+
+      context.drawImage(
+        sourceCanvas,
+        0,
+        0,
+        32,
+        32
+      );
+
+      const data =
+        context.getImageData(
+          0,
+          0,
+          32,
+          32
+        ).data;
+
+      let maximumChannel = 0;
+      let nonZeroPixels = 0;
+
+      for (
+        let index = 0;
+        index < data.length;
+        index += 4
+      ) {
+        const red =
+          data[index];
+
+        const green =
+          data[index + 1];
+
+        const blue =
+          data[index + 2];
+
+        maximumChannel = Math.max(
+          maximumChannel,
+          red,
+          green,
+          blue
+        );
+
+        if (
+          red > 1 ||
+          green > 1 ||
+          blue > 1
+        ) {
+          nonZeroPixels++;
+        }
+      }
+
+      sampleCanvas.width = 1;
+      sampleCanvas.height = 1;
+
+      return (
+        maximumChannel <= 1 ||
+        nonZeroPixels === 0
+      );
+    }
+
+    function isPreviewProbablyBlack() {
+      if (
+        video.videoWidth <= 0 ||
+        video.videoHeight <= 0
+      ) {
+        return true;
+      }
+
+      const canvas =
+        document.createElement(
+          "canvas"
+        );
+
+      canvas.width = 64;
+      canvas.height = 64;
+
+      const context =
+        canvas.getContext(
+          "2d",
+          {
+            alpha: false,
+            willReadFrequently: true
+          }
+        );
+
+      if (!context) {
+        return true;
+      }
+
+      context.drawImage(
+        video,
+        0,
+        0,
+        64,
+        64
+      );
+
+      const data =
+        context.getImageData(
+          0,
+          0,
+          64,
+          64
+        ).data;
+
+      let maximumChannel = 0;
+      let luminanceSum = 0;
+
+      for (
+        let index = 0;
+        index < data.length;
+        index += 4
+      ) {
+        const red =
+          data[index];
+
+        const green =
+          data[index + 1];
+
+        const blue =
+          data[index + 2];
+
+        maximumChannel = Math.max(
+          maximumChannel,
+          red,
+          green,
+          blue
+        );
+
+        luminanceSum +=
+          red * 0.2126 +
+          green * 0.7152 +
+          blue * 0.0722;
+      }
+
+      const pixelCount =
+        data.length / 4;
+
+      canvas.width = 1;
+      canvas.height = 1;
+
+      return (
+        maximumChannel <= 2 ||
+        luminanceSum /
+          pixelCount <
+          0.1
+      );
+    }
+
+    function renderNormalFrame(
+      sourceCanvas
+    ) {
+      const safeScale =
+        calculateSafeOutputScale(
+          sourceCanvas.width,
+          sourceCanvas.height,
+          1
+        );
+
+      const outputWidth =
+        Math.max(
+          1,
+          Math.floor(
+            sourceCanvas.width *
+            safeScale
+          )
+        );
+
+      const outputHeight =
+        Math.max(
+          1,
+          Math.floor(
+            sourceCanvas.height *
+            safeScale
+          )
+        );
+
+      resultCanvas.width =
+        outputWidth;
+
+      resultCanvas.height =
+        outputHeight;
+
+      const context =
+        resultCanvas.getContext(
+          "2d",
+          {
+            alpha: false
+          }
+        );
+
+      if (!context) {
+        throw new Error(
+          "出力用キャンバスを作成できませんでした。"
+        );
+      }
+
+      context.imageSmoothingEnabled =
+        true;
+
+      context.imageSmoothingQuality =
+        "high";
+
+      context.drawImage(
+        sourceCanvas,
+        0,
+        0,
+        outputWidth,
+        outputHeight
+      );
+
+      resultMeta.textContent =
+        `${outputWidth} × ${outputHeight}px・1枚出力`;
+    }
+
+    function createAlignmentImage(
+      sourceCanvas
+    ) {
+      const dimensions =
+        calculateDimensions(
+          sourceCanvas.width,
+          sourceCanvas.height,
+          ALIGNMENT_LONG_EDGE
+        );
+
+      const canvas =
+        document.createElement(
+          "canvas"
+        );
+
+      canvas.width =
+        dimensions.width;
+
+      canvas.height =
+        dimensions.height;
+
+      const context =
+        canvas.getContext(
+          "2d",
+          {
+            alpha: false,
+            willReadFrequently: true
+          }
+        );
+
+      if (!context) {
+        throw new Error(
+          "位置合わせ用キャンバスを作成できませんでした。"
+        );
+      }
+
+      context.imageSmoothingEnabled =
+        true;
+
+      context.imageSmoothingQuality =
+        "high";
+
+      context.drawImage(
+        sourceCanvas,
+        0,
+        0,
+        canvas.width,
+        canvas.height
+      );
+
+      const imageData =
+        context.getImageData(
+          0,
+          0,
+          canvas.width,
+          canvas.height
+        );
+
+      const luminance =
+        new Float32Array(
+          canvas.width *
+          canvas.height
+        );
+
+      for (
+        let pixelIndex = 0,
+          dataIndex = 0;
+        pixelIndex <
+          luminance.length;
+        pixelIndex++,
+          dataIndex += 4
+      ) {
+        luminance[pixelIndex] =
+          imageData.data[
+            dataIndex
+          ] *
+            0.2126 +
+          imageData.data[
+            dataIndex + 1
+          ] *
+            0.7152 +
+          imageData.data[
+            dataIndex + 2
+          ] *
+            0.0722;
+      }
+
+      const gradient =
+        calculateGradient(
+          luminance,
+          canvas.width,
+          canvas.height
+        );
+
+      const result = {
+        width: canvas.width,
+        height: canvas.height,
+        gradient
+      };
+
+      canvas.width = 1;
+      canvas.height = 1;
+
+      return result;
+    }
+
+    function calculateGradient(
+      luminance,
+      width,
+      height
+    ) {
+      const gradient =
+        new Float32Array(
+          width * height
+        );
+
+      for (
+        let y = 1;
+        y < height - 1;
+        y++
+      ) {
+        for (
+          let x = 1;
+          x < width - 1;
+          x++
+        ) {
+          const index =
+            y * width + x;
+
+          const horizontal =
+            luminance[index + 1] -
+            luminance[index - 1];
+
+          const vertical =
+            luminance[
+              index + width
+            ] -
+            luminance[
+              index - width
+            ];
+
+          gradient[index] =
+            Math.abs(horizontal) +
+            Math.abs(vertical);
+        }
+      }
+
+      return gradient;
+    }
+
+    async function estimateAlignments(
+      frames,
+      onProgress
+    ) {
+      const reference =
+        frames[0].alignmentData;
+
+      const alignments = [
+        {
+          x: 0,
+          y: 0,
+          score: 0
+        }
+      ];
+
+      for (
+        let index = 1;
+        index < frames.length;
+        index++
+      ) {
+        await yieldToBrowser();
+
+        const target =
+          frames[index]
+            .alignmentData;
+
+        const thumbnailShift =
+          findTranslation(
+            reference,
+            target
+          );
+
+        const scaleX =
+          frames[index]
+            .canvas.width /
+          target.width;
+
+        const scaleY =
+          frames[index]
+            .canvas.height /
+          target.height;
+
+        alignments.push({
+          x:
+            -thumbnailShift.x *
+            scaleX,
+          y:
+            -thumbnailShift.y *
+            scaleY,
+          score:
+            thumbnailShift.score
+        });
+
+        onProgress(
+          index /
+            Math.max(
+              1,
+              frames.length - 1
+            )
+        );
+      }
+
+      return alignments;
+    }
+
+    function findTranslation(
+      reference,
+      target
+    ) {
+      const width =
+        Math.min(
+          reference.width,
+          target.width
+        );
+
+      const height =
+        Math.min(
+          reference.height,
+          target.height
+        );
+
+      const maximumShift =
+        Math.max(
+          4,
+          Math.round(
+            Math.min(
+              width,
+              height
+            ) *
+              0.07
+          )
+        );
+
+      const scores =
+        new Map();
+
+      let bestX = 0;
+      let bestY = 0;
+      let bestScore =
+        Number.POSITIVE_INFINITY;
+
+      for (
+        let shiftY =
+          -maximumShift;
+        shiftY <= maximumShift;
+        shiftY++
+      ) {
+        for (
+          let shiftX =
+            -maximumShift;
+          shiftX <= maximumShift;
+          shiftX++
+        ) {
+          const score =
+            calculateTranslationScore(
+              reference.gradient,
+              target.gradient,
+              width,
+              height,
+              shiftX,
+              shiftY
+            );
+
+          scores.set(
+            `${shiftX},${shiftY}`,
+            score
+          );
+
+          if (
+            score < bestScore
+          ) {
+            bestScore = score;
+            bestX = shiftX;
+            bestY = shiftY;
+          }
+        }
+      }
+
+      const subpixelX =
+        estimateSubpixelCoordinate(
+          scores.get(
+            `${bestX - 1},${bestY}`
+          ),
+          scores.get(
+            `${bestX},${bestY}`
+          ),
+          scores.get(
+            `${bestX + 1},${bestY}`
+          )
+        );
+
+      const subpixelY =
+        estimateSubpixelCoordinate(
+          scores.get(
+            `${bestX},${bestY - 1}`
+          ),
+          scores.get(
+            `${bestX},${bestY}`
+          ),
+          scores.get(
+            `${bestX},${bestY + 1}`
+          )
+        );
+
+      return {
+        x: bestX + subpixelX,
+        y: bestY + subpixelY,
+        score: bestScore
+      };
+    }
+
+    function calculateTranslationScore(
+      reference,
+      target,
+      width,
+      height,
+      shiftX,
+      shiftY
+    ) {
+      const margin = 12;
+
+      const startX =
+        margin +
+        Math.max(
+          0,
+          -shiftX
+        );
+
+      const endX =
+        width -
+        margin -
+        Math.max(
+          0,
+          shiftX
+        );
+
+      const startY =
+        margin +
+        Math.max(
+          0,
+          -shiftY
+        );
+
+      const endY =
+        height -
+        margin -
+        Math.max(
+          0,
+          shiftY
+        );
+
+      let differenceSum = 0;
+      let sampleCount = 0;
+
+      for (
+        let y = startY;
+        y < endY;
+        y += 2
+      ) {
+        const referenceRow =
+          y * width;
+
+        const targetRow =
+          (y + shiftY) *
+          width;
+
+        for (
+          let x = startX;
+          x < endX;
+          x += 2
+        ) {
+          const referenceValue =
+            reference[
+              referenceRow + x
+            ];
+
+          const targetValue =
+            target[
+              targetRow +
+              x +
+              shiftX
+            ];
+
+          const difference =
+            Math.abs(
+              referenceValue -
+              targetValue
+            );
+
+          differenceSum +=
+            Math.min(
+              difference,
+              80
+            );
+
+          sampleCount++;
+        }
+      }
+
+      if (
+        sampleCount === 0
+      ) {
+        return Number
+          .POSITIVE_INFINITY;
+      }
+
+      return (
+        differenceSum /
+        sampleCount
+      );
+    }
+
+    function estimateSubpixelCoordinate(
+      previous,
+      center,
+      next
+    ) {
+      if (
+        !Number.isFinite(previous) ||
+        !Number.isFinite(center) ||
+        !Number.isFinite(next)
+      ) {
+        return 0;
+      }
+
+      const denominator =
+        previous -
+        2 * center +
+        next;
+
+      if (
+        Math.abs(denominator) <
+        0.000001
+      ) {
+        return 0;
+      }
+
+      return clamp(
+        0.5 *
+          (previous - next) /
+          denominator,
+        -0.5,
+        0.5
+      );
+    }
+
+    function calculateCommonCrop(
+      width,
+      height,
+      alignments
+    ) {
+      let left = 0;
+      let top = 0;
+      let right = width;
+      let bottom = height;
+
+      for (
+        const alignment of alignments
+      ) {
+        left = Math.max(
+          left,
+          alignment.x
+        );
+
+        top = Math.max(
+          top,
+          alignment.y
+        );
+
+        right = Math.min(
+          right,
+          alignment.x + width
+        );
+
+        bottom = Math.min(
+          bottom,
+          alignment.y + height
+        );
+      }
+
+      const margin = 3;
+
+      left = Math.ceil(
+        left + margin
+      );
+
+      top = Math.ceil(
+        top + margin
+      );
+
+      right = Math.floor(
+        right - margin
+      );
+
+      bottom = Math.floor(
+        bottom - margin
+      );
+
+      return {
+        x: left,
+        y: top,
+        width: Math.max(
+          0,
+          right - left
+        ),
+        height: Math.max(
+          0,
+          bottom - top
+        )
+      };
+    }
+
+    function validateCrop(
+      crop,
+      sourceWidth,
+      sourceHeight
+    ) {
+      if (
+        crop.width <= 0 ||
+        crop.height <= 0
+      ) {
+        throw new Error(
+          "フレームの共通領域を検出できませんでした。"
+        );
+      }
+
+      if (
+        crop.width <
+          sourceWidth * 0.7 ||
+        crop.height <
+          sourceHeight * 0.7
+      ) {
+        throw new Error(
+          "フレーム間の移動が大きすぎます。端末をより安定させて撮影してください。"
+        );
+      }
+    }
+
+    function calculateSafeOutputScale(
+      width,
+      height,
+      requestedScale
+    ) {
+      const dimensionScale =
+        Math.min(
+          MAX_OUTPUT_DIMENSION /
+            width,
+          MAX_OUTPUT_DIMENSION /
+            height
+        );
+
+      const pixelScale =
+        Math.sqrt(
+          MAX_OUTPUT_PIXELS /
+            (width * height)
+        );
+
+      return Math.max(
+        0.01,
+        Math.min(
+          requestedScale,
+          dimensionScale,
+          pixelScale
+        )
+      );
+    }
+
+    async function renderTiledComposite({
+      frames,
+      alignments,
+      crop,
+      outputScale,
+      onProgress
+    }) {
+      const outputWidth =
+        Math.max(
+          1,
+          Math.floor(
+            crop.width *
+            outputScale
+          )
+        );
+
+      const outputHeight =
+        Math.max(
+          1,
+          Math.floor(
+            crop.height *
+            outputScale
+          )
+        );
+
+      resultCanvas.width =
+        outputWidth;
+
+      resultCanvas.height =
+        outputHeight;
+
+      const resultContext =
+        resultCanvas.getContext(
+          "2d",
+          {
+            alpha: false
+          }
+        );
+
+      if (!resultContext) {
+        throw new Error(
+          "出力用キャンバスを作成できませんでした。"
+        );
+      }
+
+      const tileCanvas =
+        document.createElement(
+          "canvas"
+        );
+
+      tileCanvas.width =
+        PROCESSING_TILE_SIZE;
+
+      tileCanvas.height =
+        PROCESSING_TILE_SIZE;
+
+      const tileContext =
+        tileCanvas.getContext(
+          "2d",
+          {
+            alpha: true,
+            willReadFrequently: true
+          }
+        );
+
+      if (!tileContext) {
+        throw new Error(
+          "合成用キャンバスを作成できませんでした。"
+        );
+      }
+
+      tileContext
+        .imageSmoothingEnabled =
+        true;
+
+      tileContext
+        .imageSmoothingQuality =
+        "high";
+
+      const tileColumns =
+        Math.ceil(
+          outputWidth /
+          PROCESSING_TILE_SIZE
+        );
+
+      const tileRows =
+        Math.ceil(
+          outputHeight /
+          PROCESSING_TILE_SIZE
+        );
+
+      const totalTiles =
+        tileColumns *
+        tileRows;
+
+      let processedTiles = 0;
+
+      for (
+        let tileY = 0;
+        tileY < outputHeight;
+        tileY +=
+          PROCESSING_TILE_SIZE
+      ) {
+        for (
+          let tileX = 0;
+          tileX < outputWidth;
+          tileX +=
+            PROCESSING_TILE_SIZE
+        ) {
+          const tileWidth =
+            Math.min(
+              PROCESSING_TILE_SIZE,
+              outputWidth -
+                tileX
+            );
+
+          const tileHeight =
+            Math.min(
+              PROCESSING_TILE_SIZE,
+              outputHeight -
+                tileY
+            );
+
+          const pixelCount =
+            tileWidth *
+            tileHeight;
+
+          const redSum =
+            new Float32Array(
+              pixelCount
+            );
+
+          const greenSum =
+            new Float32Array(
+              pixelCount
+            );
+
+          const blueSum =
+            new Float32Array(
+              pixelCount
+            );
+
+          const weightSum =
+            new Float32Array(
+              pixelCount
+            );
+
+          for (
+            let frameIndex = 0;
+            frameIndex <
+              frames.length;
+            frameIndex++
+          ) {
+            tileContext.clearRect(
+              0,
+              0,
+              PROCESSING_TILE_SIZE,
+              PROCESSING_TILE_SIZE
+            );
+
+            const alignment =
+              alignments[
+                frameIndex
+              ];
+
+            const drawX =
+              (
+                alignment.x -
+                crop.x
+              ) *
+                outputScale -
+              tileX;
+
+            const drawY =
+              (
+                alignment.y -
+                crop.y
+              ) *
+                outputScale -
+              tileY;
+
+            tileContext.drawImage(
+              frames[
+                frameIndex
+              ].canvas,
+              drawX,
+              drawY,
+              frames[
+                frameIndex
+              ].canvas.width *
+                outputScale,
+              frames[
+                frameIndex
+              ].canvas.height *
+                outputScale
+            );
+
+            const tileData =
+              tileContext
+                .getImageData(
+                  0,
+                  0,
+                  tileWidth,
+                  tileHeight
+                ).data;
+
+            for (
+              let pixelIndex = 0,
+                dataIndex = 0;
+              pixelIndex <
+                pixelCount;
+              pixelIndex++,
+                dataIndex += 4
+            ) {
+              const alpha =
+                tileData[
+                  dataIndex + 3
+                ] / 255;
+
+              if (
+                alpha <= 0
+              ) {
+                continue;
+              }
+
+              redSum[
+                pixelIndex
+              ] +=
+                tileData[
+                  dataIndex
+                ] *
+                alpha;
+
+              greenSum[
+                pixelIndex
+              ] +=
+                tileData[
+                  dataIndex + 1
+                ] *
+                alpha;
+
+              blueSum[
+                pixelIndex
+              ] +=
+                tileData[
+                  dataIndex + 2
+                ] *
+                alpha;
+
+              weightSum[
+                pixelIndex
+              ] += alpha;
+            }
+          }
+
+          const outputTile =
+            resultContext
+              .createImageData(
+                tileWidth,
+                tileHeight
+              );
+
+          for (
+            let pixelIndex = 0,
+              dataIndex = 0;
+            pixelIndex <
+              pixelCount;
+            pixelIndex++,
+              dataIndex += 4
+          ) {
+            const weight =
+              weightSum[
+                pixelIndex
+              ];
+
+            if (
+              weight > 0
+            ) {
+              outputTile.data[
+                dataIndex
+              ] =
+                clampByte(
+                  redSum[
+                    pixelIndex
+                  ] /
+                    weight
+                );
+
+              outputTile.data[
+                dataIndex + 1
+              ] =
+                clampByte(
+                  greenSum[
+                    pixelIndex
+                  ] /
+                    weight
+                );
+
+              outputTile.data[
+                dataIndex + 2
+              ] =
+                clampByte(
+                  blueSum[
+                    pixelIndex
+                  ] /
+                    weight
+                );
+            } else {
+              outputTile.data[
+                dataIndex
+              ] = 0;
+
+              outputTile.data[
+                dataIndex + 1
+              ] = 0;
+
+              outputTile.data[
+                dataIndex + 2
+              ] = 0;
+            }
+
+            outputTile.data[
+              dataIndex + 3
+            ] = 255;
+          }
+
+          resultContext.putImageData(
+            outputTile,
+            tileX,
+            tileY
+          );
+
+          processedTiles++;
+
+          onProgress(
+            processedTiles /
+              totalTiles
+          );
+
+          await yieldToBrowser();
+        }
+      }
+
+      tileCanvas.width = 1;
+      tileCanvas.height = 1;
+
+      resultMeta.textContent =
+        [
+          `${outputWidth} × ${outputHeight}px`,
+          `${outputScale.toFixed(2)}倍出力`
+        ].join("・");
+    }
+
+    function saveCanvas(
+      type,
+      quality
+    ) {
+      if (
+        resultCanvas.width <= 0 ||
+        resultCanvas.height <= 0
+      ) {
+        return;
+      }
+
+      resultCanvas.toBlob(
+        blob => {
+          if (!blob) {
+            setStatus(
+              "画像ファイルを生成できませんでした。処理解像度を下げて再試行してください。"
+            );
+            return;
+          }
+
+          if (resultBlobUrl) {
+            URL.revokeObjectURL(
+              resultBlobUrl
+            );
+          }
+
+          resultBlobUrl =
+            URL.createObjectURL(
+              blob
+            );
+
+          const extension =
+            type === "image/png"
+              ? "png"
+              : "jpg";
+
+          const anchor =
+            document.createElement(
+              "a"
+            );
+
+          anchor.href =
+            resultBlobUrl;
+
+          anchor.download =
+            [
+              "multiframe",
+              modeSelect.value,
+              aspectRatioSelect
+                .value
+                .replace(":", "x"),
+              createTimestamp()
+            ].join("-") +
+            `.${extension}`;
+
+          document.body.appendChild(
+            anchor
+          );
+
+          anchor.click();
+          anchor.remove();
+        },
+        type,
+        quality
+      );
+    }
+
+    function releaseFrames(
+      frames
+    ) {
+      for (
+        const frame of frames
+      ) {
+        frame.alignmentData =
+          null;
+
+        frame.canvas.width = 1;
+        frame.canvas.height = 1;
+      }
+
+      frames.length = 0;
+    }
+
+    function calculateDimensions(
+      sourceWidth,
+      sourceHeight,
+      maximumEdge
+    ) {
+      const sourceLongEdge =
+        Math.max(
+          sourceWidth,
+          sourceHeight
+        );
+
+      const scale =
+        Math.min(
+          1,
+          maximumEdge /
+            sourceLongEdge
+        );
+
+      return {
+        width: Math.max(
+          1,
+          Math.round(
+            sourceWidth *
+            scale
+          )
+        ),
+        height: Math.max(
+          1,
+          Math.round(
+            sourceHeight *
+            scale
+          )
+        )
+      };
+    }
+
+    function updateModeControls() {
+      const normalMode =
+        modeSelect.value ===
+        "normal";
+
+      frameCountInput.disabled =
+        normalMode ||
+        isCapturing;
+
+      captureIntervalSelect.disabled =
+        normalMode ||
+        isCapturing;
+
+      frameCountValue.textContent =
+        normalMode
+          ? "1枚"
+          : `${frameCountInput.value}枚`;
+    }
+
+    function setBusy(busy) {
+      startCameraButton.disabled =
+        busy;
+
+      captureButton.disabled =
+        busy ||
+        !mediaStream;
+
+      modeSelect.disabled =
+        busy;
+
+      aspectRatioSelect.disabled =
+        busy;
+
+      zoomInput.disabled =
+        busy;
+
+      processingEdgeSelect.disabled =
+        busy;
+
+      cameraDeviceSelect.disabled =
+        busy;
+
+      if (busy) {
+        frameCountInput.disabled =
+          true;
+
+        captureIntervalSelect.disabled =
+          true;
+      } else {
+        updateModeControls();
+      }
+    }
+
+    function getModeName(mode) {
+      if (
+        mode === "normal"
+      ) {
+        return "補正なし・1枚出力";
+      }
+
+      if (
+        mode === "average"
+      ) {
+        return "平均合成・ノイズ低減";
+      }
+
+      return "マルチフレーム超解像";
+    }
+
+    function setStatus(message) {
+      statusElement.textContent =
+        message;
+    }
+
+    function isRangeCapability(
+      value
+    ) {
+      return Boolean(
+        value &&
+        Number.isFinite(
+          value.min
+        ) &&
+        Number.isFinite(
+          value.max
+        ) &&
+        value.max >= value.min
+      );
+    }
+
+    function formatZoom(value) {
+      return (
+        `${Number(value).toFixed(2)}×`
+      );
+    }
+
+    function formatNumber(value) {
+      const number =
+        Number(value);
+
+      if (
+        !Number.isFinite(number)
+      ) {
+        return String(value);
+      }
+
+      if (
+        Math.abs(number) >= 1000 ||
+        (
+          Math.abs(number) > 0 &&
+          Math.abs(number) < 0.01
+        )
+      ) {
+        return number.toExponential(
+          3
+        );
+      }
+
+      return Number(
+        number.toFixed(3)
+      ).toString();
+    }
+
+    function clamp(
+      value,
+      minimum,
+      maximum
+    ) {
+      return Math.min(
+        Math.max(
+          value,
+          minimum
+        ),
+        maximum
+      );
+    }
+
+    function clampByte(value) {
+      return Math.min(
+        255,
+        Math.max(
+          0,
+          Math.round(value)
+        )
+      );
+    }
+
+    function getCameraErrorMessage(
+      error
+    ) {
+      if (!error) {
+        return "原因不明のエラーです。";
+      }
+
+      switch (error.name) {
+        case "NotAllowedError":
+          return [
+            "カメラの使用が許可されていません。",
+            "OSとブラウザのカメラ権限を確認してください。"
+          ].join("\n");
+
+        case "NotFoundError":
+          return [
+            "利用可能なカメラが見つかりません。",
+            "カメラが接続され、有効になっているか確認してください。"
+          ].join("\n");
+
+        case "NotReadableError":
+          return [
+            "カメラを読み取れません。",
+            "別のアプリがカメラを使用している可能性があります。"
+          ].join("\n");
+
+        case "OverconstrainedError":
+          return [
+            "指定した撮影条件に対応していません。",
+            error.constraint
+              ? `非対応条件: ${error.constraint}`
+              : ""
+          ]
+            .filter(Boolean)
+            .join("\n");
+
+        case "SecurityError":
+          return [
+            "セキュリティ上の理由でカメラを使用できません。",
+            "HTTPSまたはlocalhostで開いてください。"
+          ].join("\n");
+
+        default:
+          return getErrorMessage(
+            error
+          );
+      }
+    }
+
+    function getErrorMessage(error) {
+      if (
+        error instanceof Error
+      ) {
+        return error.message;
+      }
+
+      return String(error);
+    }
+
+    function sleep(milliseconds) {
+      return new Promise(
+        resolve => {
+          window.setTimeout(
+            resolve,
+            milliseconds
+          );
+        }
+      );
+    }
+
+    function yieldToBrowser() {
+      return new Promise(
+        resolve => {
+          window.requestAnimationFrame(
+            resolve
+          );
+        }
+      );
+    }
+
+    function debounce(
+      callback,
+      wait
+    ) {
+      let timeoutId = null;
+
+      return (...args) => {
+        window.clearTimeout(
+          timeoutId
+        );
+
+        timeoutId =
+          window.setTimeout(
+            () => {
+              callback(...args);
+            },
+            wait
+          );
+      };
+    }
+
+    function createTimestamp() {
+      const date =
+        new Date();
+
+      return [
+        date.getFullYear(),
+        String(
+          date.getMonth() + 1
+        ).padStart(2, "0"),
+        String(
+          date.getDate()
+        ).padStart(2, "0"),
+        "-",
+        String(
+          date.getHours()
+        ).padStart(2, "0"),
+        String(
+          date.getMinutes()
+        ).padStart(2, "0"),
+        String(
+          date.getSeconds()
+        ).padStart(2, "0")
+      ].join("");
+    }
+
+    window.addEventListener(
+      "pagehide",
+      () => {
+        stopCamera();
+
+        if (resultBlobUrl) {
+          URL.revokeObjectURL(
+            resultBlobUrl
+          );
+        }
+      }
+    );
+  </script>
+</body>
+</html>
